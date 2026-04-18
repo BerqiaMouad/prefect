@@ -104,7 +104,9 @@ jobs:
   get-prefect-version:
     name: Get latest Prefect version
     needs: [build-pypi-dists, publish-pypi-dists]
-    if: needs.build-pypi-dists.outputs.PACKAGE_NAME == 'prefect-aws'
+    if: >-
+      needs.build-pypi-dists.outputs.PACKAGE_NAME == 'prefect-aws' ||
+      needs.build-pypi-dists.outputs.PACKAGE_NAME == 'prefect-snowflake'
     runs-on: ubuntu-latest
     outputs:
       PREFECT_VERSION: ${{ steps.get_version.outputs.PREFECT_VERSION }}
@@ -125,4 +127,14 @@ jobs:
     with:
       prefect_version: ${{ needs.get-prefect-version.outputs.PREFECT_VERSION }}
       prefect_aws_version: ${{ needs.build-pypi-dists.outputs.PACKAGE_VERSION }}
+    secrets: inherit
+
+  trigger-snowflake-docker-build:
+    name: Build prefect-snowflake Docker images
+    needs: [build-pypi-dists, publish-pypi-dists, get-prefect-version]
+    if: needs.build-pypi-dists.outputs.PACKAGE_NAME == 'prefect-snowflake'
+    uses: ./.github/workflows/prefect-snowflake-docker-images.yaml
+    with:
+      prefect_version: ${{ needs.get-prefect-version.outputs.PREFECT_VERSION }}
+      prefect_snowflake_version: ${{ needs.build-pypi-dists.outputs.PACKAGE_VERSION }}
     secrets: inherit
