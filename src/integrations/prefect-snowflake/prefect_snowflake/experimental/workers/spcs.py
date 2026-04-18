@@ -456,14 +456,15 @@ class SPCSWorker(BaseWorker):
     job_configuration_variables = SPCSServiceTemplateVariables
     _description = "Execute flow runs within containers on Snowflake's Snowpark Container Services. Requires a Snowflake account."
 
-    async def _initiate_run(
+    async def _start_service_and_build_identifier(
         self,
         flow_run: FlowRun,
         configuration: SPCSWorkerConfiguration,
-    ) -> str:
-        """Initiates a flow run as a service job in Snowpark Container Services.
+    ) -> tuple[str, str]:
+        """Start a SPCS job service and build its infrastructure identifier.
 
-        Returns the infrastructure identifier for cancellation support.
+        Returns:
+            A tuple of (job_service_name, identifier).
         """
         [database, schema, _] = configuration.compute_pool.split(".")
 
@@ -478,6 +479,20 @@ class SPCSWorker(BaseWorker):
             raise
 
         identifier = f"{database}.{schema}::{job_service_name}"
+        return job_service_name, identifier
+
+    async def _initiate_run(
+        self,
+        flow_run: FlowRun,
+        configuration: SPCSWorkerConfiguration,
+    ) -> str:
+        """Initiates a flow run as a service job in Snowpark Container Services.
+
+        Returns the infrastructure identifier for cancellation support.
+        """
+        _, identifier = await self._start_service_and_build_identifier(
+            flow_run, configuration
+        )
         self._logger.info(f"Initiated SPCS job service: {identifier}")
         return identifier
 
@@ -499,18 +514,9 @@ class SPCSWorker(BaseWorker):
             The result of the flow run.
 
         """
-        try:
-            job_service_name = await run_sync_in_worker_thread(
-                self._create_and_start_service,
-                flow_run,
-                configuration,
-            )
-        except Exception as exc:
-            self._report_service_creation_failure(configuration, exc)
-            raise
-
-        [database, schema, _] = configuration.compute_pool.split(".")
-        identifier = f"{database}.{schema}::{job_service_name}"
+        job_service_name, identifier = (
+            await self._start_service_and_build_identifier(flow_run, configuration)
+        )
         self._logger.info(f"Created SPCS job service: {identifier}")
 
         if task_status:
