@@ -33,9 +33,12 @@ from tenacity import (
     wait_random,
 )
 
+import prefect
 from prefect.client.schemas.objects import FlowRun
+from prefect.states import InfrastructurePending
 from prefect.utilities.asyncutils import run_sync_in_worker_thread
 from prefect.utilities.dockerutils import get_prefect_image_name
+from prefect.utilities.engine import propose_state
 from prefect.workers.base import (
     BaseJobConfiguration,
     BaseVariables,
@@ -518,6 +521,23 @@ class SPCSWorker(BaseWorker):
             await self._start_service_and_build_identifier(flow_run, configuration)
         )
         self._logger.info(f"Created SPCS job service: {identifier}")
+
+        try:
+            async with prefect.get_client() as client:
+                with anyio.move_on_after(5):
+                    await propose_state(
+                        client=client,
+                        state=InfrastructurePending(
+                            message="SPCS service is provisioning."
+                        ),
+                        flow_run_id=flow_run.id,
+                    )
+        except Exception:
+            self._logger.debug(
+                "Failed to propose InfrastructurePending for flow run %s",
+                flow_run.id,
+                exc_info=True,
+            )
 
         if task_status:
             task_status.started(identifier)

@@ -2411,3 +2411,95 @@ class TestFailureDiagnostics:
                 worker._watch_service(service_name, config)
 
         assert "cancel" in caplog.text.lower() or "deleted" in caplog.text.lower()
+
+
+class TestInfrastructurePending:
+    """Tests for InfrastructurePending state proposal during run()."""
+
+    async def test_run_proposes_infrastructure_pending(
+        self,
+        snowflake_credentials,
+        worker_flow_run,
+        mock_snowflake_root,
+    ):
+        """run() should propose InfrastructurePending after creating the service."""
+        from prefect.states import InfrastructurePending
+
+        service_name = "test_service"
+        mock_schema = mock_snowflake_root.databases["common"].schemas["compute"]
+        mock_service = mock_schema.services[service_name]
+        mock_service.get_containers.return_value = iter(
+            [create_mock_service_container("DONE")]
+        )
+
+        config = await create_job_configuration(
+            snowflake_credentials,
+            worker_flow_run,
+            {"service_watch_poll_interval": 1},
+        )
+
+        mock_client = AsyncMock()
+        mock_client.set_flow_run_state = AsyncMock(
+            return_value=MagicMock(status=MagicMock(value="ACCEPT"))
+        )
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("prefect_snowflake.workers.spcs.prefect") as mock_prefect:
+            mock_prefect.get_client.return_value = mock_ctx
+            with patch(
+                "prefect_snowflake.workers.spcs.propose_state",
+                new_callable=AsyncMock,
+            ) as mock_propose:
+                async with SPCSWorker(work_pool_name="test-pool") as worker:
+                    result = await worker.run(
+                        flow_run=worker_flow_run, configuration=config
+                    )
+
+        assert result.status_code == 0
+        mock_propose.assert_called_once()
+        call_kwargs = mock_propose.call_args
+        proposed_state = call_kwargs.kwargs.get("state") or call_kwargs[1].get(
+            "state", call_kwargs[0][1] if len(call_kwargs[0]) > 1 else None
+        )
+        assert proposed_state is not None
+        assert proposed_state.name == "InfrastructurePending"
+        assert call_kwargs.kwargs.get("flow_run_id") or call_kwargs[1].get(
+            "flow_run_id"
+        ) == worker_flow_run.id
+
+    async def test_run_continues_if_pending_proposal_fails(
+        self,
+        snowflake_credentials,
+        worker_flow_run,
+        mock_snowflake_root,
+    ):
+        """run() should still complete even if InfrastructurePending proposal fails."""
+        service_name = "test_service"
+        mock_schema = mock_snowflake_root.databases["common"].schemas["compute"]
+        mock_service = mock_schema.services[service_name]
+        mock_service.get_containers.return_value = iter(
+            [create_mock_service_container("DONE")]
+        )
+
+        config = await create_job_configuration(
+            snowflake_credentials,
+            worker_flow_run,
+            {"service_watch_poll_interval": 1},
+        )
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(side_effect=ConnectionError("No server"))
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("prefect_snowflake.workers.spcs.prefect") as mock_prefect:
+            mock_prefect.get_client.return_value = mock_ctx
+
+            async with SPCSWorker(work_pool_name="test-pool") as worker:
+                result = await worker.run(
+                    flow_run=worker_flow_run, configuration=config
+                )
+
+        assert result.status_code == 0
