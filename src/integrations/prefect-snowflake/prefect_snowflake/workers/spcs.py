@@ -93,7 +93,7 @@ def _get_default_job_manifest_template() -> dict[str, Any]:
                     "name": "{{ name }}",
                     "image": "{{ image }}",
                     "command": "{{ entrypoint }}",
-                    "args": " {{ command }}",
+                    "args": "{{ command }}",
                     "env": "{{ env }}",
                     "secrets": "{{ secrets }}",
                     "volumeMounts": "{{ volume_mounts }}",
@@ -158,7 +158,7 @@ class SPCSWorkerConfiguration(BaseJobConfiguration):
         default_factory=SnowflakeCredentials,
         description="Snowflake credentials to use when creating job services.",
     )
-    secrets: list[dict[str, str]] = Field(
+    secrets: list[dict[str, Any]] = Field(
         default_factory=list,
         description="Snowflake secrets to inject into the container as env variables or files.",
     )
@@ -370,7 +370,7 @@ class SPCSServiceTemplateVariables(BaseVariables):
         default_factory=SnowflakeCredentials,
         description="Snowflake credentials to use when creating job services.",
     )
-    secrets: list[dict[str, str]] = Field(
+    secrets: list[dict[str, Any]] = Field(
         default_factory=list,
         description="Snowflake secrets to inject into the container as env variables or files.",
     )
@@ -762,19 +762,18 @@ class SPCSWorker(BaseWorker):
                         "Resume it with ALTER COMPUTE POOL ... RESUME before running flows."
                     )
 
-                # Wait until the compute pool is active. It might be idle, resizing, etc.
-                if pool_state == "ACTIVE":
+                if pool_state in ("ACTIVE", "IDLE"):
                     break
 
                 elapsed_time = time.time() - pool_start_time_seconds
 
                 if pool_timeout and elapsed_time > pool_timeout:
                     raise RuntimeError(
-                        f"Timed out after {elapsed_time} s while waiting for compute pool start."
+                        f"Timed out after {elapsed_time} s while waiting for compute pool to become ready."
                     )
 
                 self._logger.info(
-                    f"Compute pool {compute_pool} is in state {pool_state}, checking for ACTIVE state again in {configuration.service_watch_poll_interval} seconds."
+                    f"Compute pool {compute_pool} is {pool_state}, waiting for ready state (polling in {configuration.service_watch_poll_interval}s)."
                 )
                 time.sleep(configuration.service_watch_poll_interval)
 

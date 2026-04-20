@@ -438,7 +438,7 @@ async def test_watch_service_waits_for_pool_activation(
         nonlocal call_count
         call_count += 1
         mock_pool_state = MagicMock()
-        mock_pool_state.state = "ACTIVE" if call_count > 2 else "IDLE"
+        mock_pool_state.state = "ACTIVE" if call_count > 2 else "STARTING"
         return mock_pool_state
 
     mock_pool.fetch.side_effect = pool_fetch_side_effect
@@ -478,7 +478,7 @@ async def test_watch_service_pool_timeout(
     mock_schema = mock_snowflake_root.databases["common"].schemas["compute"]
     mock_pool = mock_schema.compute_pools["test_pool"]
     mock_pool_state = MagicMock()
-    mock_pool_state.state = "IDLE"
+    mock_pool_state.state = "STARTING"
     mock_pool.fetch.return_value = mock_pool_state
 
     config = await create_job_configuration(
@@ -489,7 +489,7 @@ async def test_watch_service_pool_timeout(
 
     async with SPCSWorker(work_pool_name="test-pool") as worker:
         with pytest.raises(
-            RuntimeError, match="Timed out.*while waiting for compute pool start"
+            RuntimeError, match="Timed out.*while waiting for compute pool"
         ):
             worker._watch_service("test_service", config)
 
@@ -1473,23 +1473,18 @@ class TestComputePoolValidation:
         # Should fail after a single check, not loop until timeout
         assert mock_pool.fetch.call_count == 1
 
-    async def test_idle_pool_transitions_to_active(
+    async def test_idle_pool_is_ready(
         self,
         snowflake_credentials,
         worker_flow_run,
         mock_snowflake_root,
     ):
-        """An IDLE pool should be waited on until it becomes ACTIVE."""
+        """An IDLE pool is ready — the worker should not wait for ACTIVE."""
         mock_pool = mock_snowflake_root.compute_pools["test_pool"]
 
-        states = iter(["IDLE", "STARTING", "ACTIVE"])
-
-        def fetch_side_effect():
-            state = MagicMock()
-            state.state = next(states)
-            return state
-
-        mock_pool.fetch.side_effect = fetch_side_effect
+        mock_state = MagicMock()
+        mock_state.state = "IDLE"
+        mock_pool.fetch.return_value = mock_state
 
         config = await create_job_configuration(
             snowflake_credentials,
@@ -1501,7 +1496,7 @@ class TestComputePoolValidation:
             exit_code = worker._watch_service("test_service", config)
 
         assert exit_code == 0
-        assert mock_pool.fetch.call_count == 3
+        assert mock_pool.fetch.call_count == 1
 
     async def test_resizing_pool_waits_for_active(
         self,
