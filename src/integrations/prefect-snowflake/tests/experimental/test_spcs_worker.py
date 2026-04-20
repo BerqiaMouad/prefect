@@ -191,6 +191,7 @@ def mock_snowflake_root(monkeypatch):
 
     # Patch both where it's imported from and where it's used.
     monkeypatch.setattr("snowflake.core.Root", MockRoot)
+    monkeypatch.setattr("prefect_snowflake.workers.spcs.Root", MockRoot)
     monkeypatch.setattr("prefect_snowflake.experimental.workers.spcs.Root", MockRoot)
 
     return mock_root

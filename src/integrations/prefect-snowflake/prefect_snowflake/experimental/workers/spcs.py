@@ -1,4 +1,5 @@
 # Backward-compatibility shim — the canonical module is now prefect_snowflake.workers.spcs
+from snowflake.core import Root
 from prefect_snowflake.workers.spcs import (
     SPCSServiceTemplateVariables,
     SPCSWorker,
@@ -9,6 +10,7 @@ from prefect_snowflake.workers.spcs import (
 )
 
 __all__ = [
+    "Root",
     "SPCSServiceTemplateVariables",
     "SPCSWorker",
     "SPCSWorkerConfiguration",

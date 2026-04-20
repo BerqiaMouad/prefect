@@ -98,22 +98,5 @@ CLAUDE.md
 # Local planning artifacts
 .planning/
 
-# ── GSD baseline (auto-generated) ──
+# GSD project artifacts
 .gsd
-.gsd-id
-.bg-shell/
-Thumbs.db
-*.swp
-*.swo
-*~
-*.code-workspace
-.env.*
-!.env.example
-node_modules/
-.next/
-*.pyc
-.venv/
-target/
-vendor/
-coverage/
-tmp/

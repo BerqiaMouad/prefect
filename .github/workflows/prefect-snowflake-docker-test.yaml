@@ -1,0 +1,82 @@
+name: Prefect Snowflake Docker Test Build
+
+on:
+  pull_request:
+    paths:
+      - "src/integrations/prefect-snowflake/Dockerfile"
+      - ".github/workflows/prefect-snowflake-docker-images.yaml"
+      - ".github/workflows/prefect-snowflake-docker-test.yaml"
+
+jobs:
+  get-versions:
+    name: Get Prefect and prefect-snowflake versions
+    runs-on: ubuntu-latest
+    outputs:
+      PREFECT_VERSION: ${{ steps.get_prefect_version.outputs.PREFECT_VERSION }}
+      PREFECT_SNOWFLAKE_VERSION: ${{ steps.get_prefect_snowflake_version.outputs.PREFECT_SNOWFLAKE_VERSION }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-tags: true
+
+      - name: Get latest Prefect version
+        id: get_prefect_version
+        run: |
+          PREFECT_VERSION=$(gh api repos/${{ github.repository }}/releases/latest --jq '.tag_name')
+          echo "PREFECT_VERSION=$PREFECT_VERSION" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Get latest prefect-snowflake version from tags
+        id: get_prefect_snowflake_version
+        run: |
+          PREFECT_SNOWFLAKE_VERSION=$(git tag --list 'prefect-snowflake-*' --sort=-version:refname | head -1 | sed 's/^prefect-snowflake-//')
+          if [ -z "$PREFECT_SNOWFLAKE_VERSION" ]; then
+            echo "Unable to determine most recent prefect-snowflake version!"
+            exit 1
+          fi
+          echo "PREFECT_SNOWFLAKE_VERSION=$PREFECT_SNOWFLAKE_VERSION" >> $GITHUB_OUTPUT
+
+  test-build:
+    name: Test build prefect-snowflake Docker image
+    runs-on: ubuntu-latest
+    needs: get-versions
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Test Docker build
+        uses: docker/build-push-action@v7
+        with:
+          context: src/integrations/prefect-snowflake
+          platforms: linux/amd64
+          build-args: |
+            PYTHON_VERSION=3.12
+            PREFECT_VERSION=${{ needs.get-versions.outputs.PREFECT_VERSION }}
+            PREFECT_SNOWFLAKE_VERSION=${{ needs.get-versions.outputs.PREFECT_SNOWFLAKE_VERSION }}
+          push: false
+          pull: true
+          tags: prefect-snowflake-test:latest
+          load: true
+
+      - name: Test prefect-snowflake version in image
+        run: |
+          # Run the image and get the installed prefect-snowflake version
+          INSTALLED_VERSION=$(docker run --rm prefect-snowflake-test:latest python -c "import prefect_snowflake; print(prefect_snowflake.__version__)")
+          echo "Expected prefect-snowflake version: ${{ needs.get-versions.outputs.PREFECT_SNOWFLAKE_VERSION }}"
+          echo "Installed prefect-snowflake version: $INSTALLED_VERSION"
+
+          # Compare versions
+          if [ "$INSTALLED_VERSION" != "${{ needs.get-versions.outputs.PREFECT_SNOWFLAKE_VERSION }}" ]; then
+            echo "ERROR: Version mismatch!"
+            echo "Expected: ${{ needs.get-versions.outputs.PREFECT_SNOWFLAKE_VERSION }}"
+            echo "Found: $INSTALLED_VERSION"
+            exit 1
+          fi
+
+          echo "✅ prefect-snowflake version matches expected version"
