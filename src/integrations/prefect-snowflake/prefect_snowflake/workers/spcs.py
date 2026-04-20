@@ -931,6 +931,7 @@ class SPCSWorker(BaseWorker):
                 "account": os.getenv("SNOWFLAKE_ACCOUNT"),
                 "token": Path("/snowflake/session/token").read_text(),
                 "authenticator": "oauth",
+                "application": "Prefect_Snowflake_Collection",
             }
         else:
             creds = configuration.snowflake_credentials
@@ -938,6 +939,7 @@ class SPCSWorker(BaseWorker):
                 "account": creds.account,
                 "user": creds.user,
                 "role": creds.role,
+                "application": "Prefect_Snowflake_Collection",
             }
             private_key = creds.resolve_private_key()
             if private_key is not None:

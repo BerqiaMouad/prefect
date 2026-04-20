@@ -570,6 +570,7 @@ async def test_get_snowflake_connection_parameters_external():
     assert params["user"] == "test_user"
     assert params["password"] == "test_password"
     assert params["role"] == "test_role"
+    assert params["application"] == "Prefect_Snowflake_Collection"
     assert "private_key" not in params
 
 
@@ -638,6 +639,7 @@ async def test_get_snowflake_connection_parameters_in_snowflake(monkeypatch, tmp
     assert params["account"] == "test-account"
     assert params["token"] == "test-token"
     assert params["authenticator"] == "oauth"
+    assert params["application"] == "Prefect_Snowflake_Collection"
 
 
 async def test_get_and_stream_output(snowflake_credentials, worker_flow_run):
