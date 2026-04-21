@@ -509,8 +509,8 @@ async def test_watch_service_handles_different_states(
 
     for state in ["DONE", "FAILED", "SUSPENDED", "DELETED", "INTERNAL_ERROR"]:
         expected_exit_code = 0 if state == "DONE" else 1
-        mock_service.get_containers.side_effect = lambda s=state: (
-            iter([create_mock_service_container(s)])
+        mock_service.get_containers.side_effect = lambda s=state: iter(
+            [create_mock_service_container(s)]
         )
 
         async with SPCSWorker(work_pool_name="test-pool") as worker:
@@ -820,9 +820,7 @@ async def test_handle_snowflake_connection_error(
     config = await create_job_configuration(snowflake_credentials, worker_flow_run)
 
     async with SPCSWorker(work_pool_name="test-pool") as worker:
-        with pytest.raises(
-            RuntimeError, match="Failed to connect to Snowflake"
-        ):
+        with pytest.raises(RuntimeError, match="Failed to connect to Snowflake"):
             await worker.run(flow_run=worker_flow_run, configuration=config)
 
 
@@ -1274,9 +1272,7 @@ async def test_run_wraps_connection_error_with_context(
             await worker.run(flow_run=worker_flow_run, configuration=config)
 
 
-async def test_initiate_run_returns_identifier(
-    snowflake_credentials, worker_flow_run
-):
+async def test_initiate_run_returns_identifier(snowflake_credentials, worker_flow_run):
     """Test that _initiate_run returns the infrastructure identifier."""
     config = await create_job_configuration(snowflake_credentials, worker_flow_run)
 
@@ -1304,9 +1300,7 @@ async def test_initiate_run_wraps_errors(
 
     async with SPCSWorker(work_pool_name="test-pool") as worker:
         with pytest.raises(RuntimeError, match="Verify that the compute pool"):
-            await worker._initiate_run(
-                flow_run=worker_flow_run, configuration=config
-            )
+            await worker._initiate_run(flow_run=worker_flow_run, configuration=config)
 
 
 # ---- Error classification tests ----
@@ -1662,9 +1656,7 @@ class TestEnvironmentVariables:
             snowflake_credentials,
             worker_flow_run,
             {
-                "secrets": [
-                    {"envVarName": "OTHER_SECRET", "snowflakeSecret": "other"}
-                ],
+                "secrets": [{"envVarName": "OTHER_SECRET", "snowflakeSecret": "other"}],
                 "env": {"PREFECT_API_KEY": "keep-this"},
             },
         )
@@ -1681,28 +1673,36 @@ class TestLogStreaming:
     async def test_stream_output_empty_string(self):
         """Empty log content should return the original last_log_time."""
         worker = SPCSWorker(work_pool_name="test-pool")
-        last_time = datetime.datetime(2025, 10, 27, 10, 0, 0, tzinfo=datetime.timezone.utc)
+        last_time = datetime.datetime(
+            2025, 10, 27, 10, 0, 0, tzinfo=datetime.timezone.utc
+        )
         result = worker._stream_output("", last_time)
         assert result == last_time
 
     async def test_stream_output_only_whitespace(self):
         """Whitespace-only lines should be skipped."""
         worker = SPCSWorker(work_pool_name="test-pool")
-        last_time = datetime.datetime(2025, 10, 27, 10, 0, 0, tzinfo=datetime.timezone.utc)
+        last_time = datetime.datetime(
+            2025, 10, 27, 10, 0, 0, tzinfo=datetime.timezone.utc
+        )
         result = worker._stream_output("   \n\n  \n", last_time)
         assert result == last_time
 
     async def test_stream_output_malformed_timestamp(self):
         """Lines with unparseable timestamps should be skipped gracefully."""
         worker = SPCSWorker(work_pool_name="test-pool")
-        last_time = datetime.datetime(2025, 10, 27, 10, 0, 0, tzinfo=datetime.timezone.utc)
+        last_time = datetime.datetime(
+            2025, 10, 27, 10, 0, 0, tzinfo=datetime.timezone.utc
+        )
         result = worker._stream_output("not-a-timestamp Some log message", last_time)
         assert result == last_time
 
     async def test_stream_output_filters_old_and_keeps_new(self, capsys):
         """Only lines newer than last_log_time should be streamed."""
         worker = SPCSWorker(work_pool_name="test-pool")
-        last_time = datetime.datetime(2025, 10, 27, 10, 0, 2, tzinfo=datetime.timezone.utc)
+        last_time = datetime.datetime(
+            2025, 10, 27, 10, 0, 2, tzinfo=datetime.timezone.utc
+        )
 
         log_content = (
             "2025-10-27T10:00:00.000Z Old log line\n"
@@ -1903,9 +1903,7 @@ class TestSlugify:
 
     def test_special_characters_cleaned(self):
         flow_run_id = uuid.uuid4()
-        result = SPCSWorker._slugify_service_name(
-            "My Flow! @#$% Name", flow_run_id
-        )
+        result = SPCSWorker._slugify_service_name("My Flow! @#$% Name", flow_run_id)
         assert result is not None
         assert "@" not in result
         assert "#" not in result
@@ -1927,9 +1925,7 @@ class TestSlugify:
 
     def test_underscores_in_name_preserved(self):
         flow_run_id = uuid.uuid4()
-        result = SPCSWorker._slugify_service_name(
-            "my_flow_name", flow_run_id
-        )
+        result = SPCSWorker._slugify_service_name("my_flow_name", flow_run_id)
         assert result is not None
         assert "my_flow_name" in result
 
@@ -2317,7 +2313,9 @@ class TestFailureDiagnostics:
             with caplog.at_level(logging.ERROR):
                 worker._watch_service(service_name, config)
 
-        assert "event table" in caplog.text.lower() or "event_table" in caplog.text.lower()
+        assert (
+            "event table" in caplog.text.lower() or "event_table" in caplog.text.lower()
+        )
 
     async def test_internal_error_logs_retry_guidance(
         self,
@@ -2463,9 +2461,10 @@ class TestInfrastructurePending:
         )
         assert proposed_state is not None
         assert proposed_state.name == "InfrastructurePending"
-        assert call_kwargs.kwargs.get("flow_run_id") or call_kwargs[1].get(
-            "flow_run_id"
-        ) == worker_flow_run.id
+        assert (
+            call_kwargs.kwargs.get("flow_run_id")
+            or call_kwargs[1].get("flow_run_id") == worker_flow_run.id
+        )
 
     async def test_run_continues_if_pending_proposal_fails(
         self,

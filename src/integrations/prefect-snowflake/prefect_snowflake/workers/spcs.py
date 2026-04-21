@@ -517,8 +517,8 @@ class SPCSWorker(BaseWorker):
             The result of the flow run.
 
         """
-        job_service_name, identifier = (
-            await self._start_service_and_build_identifier(flow_run, configuration)
+        job_service_name, identifier = await self._start_service_and_build_identifier(
+            flow_run, configuration
         )
         self._logger.info(f"Created SPCS job service: {identifier}")
 
@@ -626,7 +626,9 @@ class SPCSWorker(BaseWorker):
         """Wrap common Snowflake errors with actionable messages."""
         msg = str(exc)
         error_kind = "transient" if _is_transient_error(exc) else "permanent"
-        self._logger.debug(f"Service creation failed ({error_kind}): {type(exc).__name__}: {msg}")
+        self._logger.debug(
+            f"Service creation failed ({error_kind}): {type(exc).__name__}: {msg}"
+        )
 
         if isinstance(exc, snowflake.connector.errors.ProgrammingError):
             if "does not exist" in msg.lower():
@@ -679,7 +681,11 @@ class SPCSWorker(BaseWorker):
         )
 
         connection_parameters = self._get_snowflake_connection_parameters(configuration)
-        auth_method = "in-Snowflake OAuth" if os.getenv("SNOWFLAKE_HOST") else "external credentials"
+        auth_method = (
+            "in-Snowflake OAuth"
+            if os.getenv("SNOWFLAKE_HOST")
+            else "external credentials"
+        )
         self._logger.info(f"Connecting to Snowflake using {auth_method}")
 
         with snowflake.connector.connect(**connection_parameters) as session:
