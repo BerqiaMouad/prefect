@@ -515,6 +515,7 @@
                   "integrations/prefect-dbt/install",
                   "integrations/prefect-dbt/dbt-cloud",
                   "integrations/prefect-dbt/runner",
+                  "integrations/prefect-dbt/orchestrator",
                   "integrations/prefect-dbt/legacy",
                   {
                     "anchor": "prefect-dbt-sdk-reference",
